@@ -186,12 +186,14 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--catalogspath', required=True, help='Path to the catalogs dir')
     parser.add_argument('--gtpath', required=True, help='Path to the ground-truth csv')
+    parser.add_argument('--paramspath', required=False, help='Path to the parameters file',
+                        default='data/params.csv')
     args = parser.parse_args()
 
     headerpath = 'data/header.txt'
     resultsdir = ojoin('results', datetime.datetime.now().strftime('%Y%m%d_%H%M'))
     os.mkdir(resultsdir)
-    params = pd.read_csv('data/params.csv')
+    params = pd.read_csv(args.paramspath)
 
     logging.basicConfig(level=logging.DEBUG)
 
@@ -223,7 +225,7 @@ def main():
     x_narrow = preprocessing.scale(features[narrowbands])
     x_union = preprocessing.scale(features[broadbands+narrowbands])
 
-    cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
+    cv = ShuffleSplit(n_splits=3, test_size=0.2, random_state=0)
 
     broadscores = cv_svm(x_broad, y, cv, params)
     narrowscores = cv_svm(x_narrow, y, cv, params)

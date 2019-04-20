@@ -4,13 +4,14 @@
 
 import argparse
 import os
+from os.path import join as ojoin
 import time
 import logging
 from logging import debug
 import pickle
 import itertools
 import numpy as np
-from copy import copy
+import datetime
 
 import matplotlib
 from matplotlib import pyplot as plt
@@ -22,6 +23,8 @@ from sklearn.model_selection import train_test_split
 from sklearn.metrics import mean_squared_error, r2_score
 from sklearn import svm
 from sklearn.model_selection import ShuffleSplit, cross_val_score
+from sklearn import preprocessing
+
 
 def read_catalogs_dir(catalogdir, cols, _ids=None):
     """Loop through each file in @catalogdir and keep just the ids in @_ids
@@ -39,7 +42,7 @@ def read_catalogs_dir(catalogdir, cols, _ids=None):
     features = pd.DataFrame()
 
     for f in sorted(os.listdir(catalogdir)):
-        catalogpath = os.path.join(catalogdir, f)
+        catalogpath = ojoin(catalogdir, f)
         if os.path.isdir(catalogpath): continue
 
         debug(catalogpath)
@@ -52,7 +55,7 @@ def read_catalogs_dir(catalogdir, cols, _ids=None):
             newrows = df[df.ID.isin(ids)]
             ids = ids.difference(set(newrows.ID))
             features = features.append(newrows, ignore_index=True)
-    return features
+    return features.sort_values(by='ID')
 
 def read_headers_and_identifiers(headerpath):
     """Read column names, broad band identifiers and narrow band identifiers.
@@ -67,8 +70,8 @@ def read_headers_and_identifiers(headerpath):
     with open(headerpath) as fh:
         fh.readline()
         cols = fh.readline().strip().split(',')
-        broad_suff = fh.readline().strip().split(', ')
-        narrow_suff = fh.readline().strip().split(', ')
+        broad_suff = fh.readline().strip().split(',')
+        narrow_suff = fh.readline().strip().split(',')
     return cols, broad_suff, narrow_suff
 
 def apply_regression(x_train, y_train, x_test, y_test):
@@ -80,139 +83,90 @@ def apply_regression(x_train, y_train, x_test, y_test):
     debug("Mean squared error: {:2f}\tVariance score: {:2f}"
           .format(mean_squared_error(y_test, y_pred), r2_score(y_test, y_pred)))
 
-def get_kth_fold_traintest_indices(k, total, testratio):
-    """Partition the indices (testratio, 1-trainratio)
+def get_catalogs(catalogspath, catalogspklpath, cols, ids_keep):
+    """Read csv or load pickle file from catalogs filtered by @ids_keep
 
     Args:
-    n(int): number of elements
-    testratio(float): ratio of the input data for testing
+    catalogspath(str): path to the catalogs dir
+    catalogspklpath(str): path to the pickle file,
+    cols(list): list of column names,
+    ids_keep(list): list of IDS to keep
 
     Returns:
-    (list, list): list of train and of test indices
+    pandas.Dataframe: catalogs matrix
     """
 
-    allindices = set(range(total))
-    test = range(k*sz, (k+1)*sz)
-    train = allindices.difference(test)
-    return train, test
+    if not os.path.exists(catalogspklpath):
+        features = read_catalogs_dir(catalogspath, cols, ids_keep)
+        pickle.dump(features, open(catalogspklpath, 'wb'))
+    else:
+        features = pickle.load(open(catalogspklpath, 'rb'))
+    return features
 
-def apply_svm(x, y, cv):
-    """Apply svm to the input data
+def cv_svm(x, y, cv, params):
+    """Cross-validation evaluation using SVM
 
     Args:
-    x (2d tensor): (i, j) element represent j-th atribute of the i-th sample
-    y (list): ground-truth
+    x(2d tensor): (i, j) element represent j-th atribute of the i-th sample
+    y(list): ground-truth
+    cv(ShuffleSplit): sklearn object to handle cross validation
+    params(pandas.DataFrame: SVM parameters
 
     Returns:
     ndarray: (i, j) element represent i-th score from the i-th run
-    list: list of tuples of the values of the parameters
     """
 
-    c = [.1, 1, 10]
-    degree = [2, 3]
-    gamma = ['auto', 'scale']
-    kernel = ['linear', 'poly', 'rbf', 'sigmoid']
-    params = itertools.product(c, degree, gamma, kernel)
-    paramslist = list(copy(params))
 
     k = cv.get_n_splits()
     allscores = np.ndarray((0, k))
+    times = []
 
-    for p in params:
+    for idx, (myker, mydeg, mygamma, myc) in params.iterrows():
         debug('##########################################################')
         debug('Cross-validation for {}...'.format(id))
         
         t0 = time.time()
         
-        clf = svm.SVC(C=p[0],
-                      cache_size=2000,
-                      class_weight=None,
+        myc, myker, mydeg, mygamma
+        clf = svm.SVC(C=1.0,
+                      kernel=myker,
+                      degree=mydeg,
+                      gamma=mygamma,
                       coef0=0.0,
-                      decision_function_shape='ovr',
-                      degree=p[1],
-                      gamma=p[2],
-                      kernel=p[3],
-                      max_iter=2000,
-                      probability=False,
-                      random_state=None,
                       shrinking=True,
+                      probability=False,
                       tol=0.001,
-                      verbose=False)
+                      cache_size=5000,
+                      class_weight=None,
+                      verbose=False,
+                      max_iter=2000,
+                      decision_function_shape='ovr',
+                      random_state=0)
         debug(clf)
         scores = cross_val_score(clf, x, y, cv=cv)
        
         debug(scores)
         allscores = np.concatenate((allscores, scores.reshape(1, k)), axis=0)
+        elapsed = time.time() - t0
         debug('Elapsed time: {:.2f}s'.format(time.time() - t0))
-    return allscores, paramslist
+        times.append(elapsed)
+    return allscores
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
-    #parser.add_argument('--outdir', required=True, help='Output directory')
-    args = parser.parse_args()
-    logging.basicConfig(level=logging.DEBUG)
+def dump_results(broadscores, narrowscores, unionscores, params, resultsdir):
+    """Output results to csv
 
-    #classespath = '/home/frodo/temp/raw-data/sloan_splus_matches.csv'
-    classespath = '/home/frodo/temp/raw-data/sloan_splus_matches_sample500.csv'
-    catalogdir = '/home/frodo/temp/raw-data/catalogs/'
-    headerpath = 'data/header.txt'
-    resultsdir = 'results'
+    Args:
+    broadscores, narrowscores, unionscores (ndarray): scores
+    params(pandas.DataFrame): parameters
+    resultsdir(str): path to the results directory
 
-    classesfname = os.path.basename(classespath)
-    catalogspklpath = os.path.join('data/', os.path.splitext(classesfname)[0] + '.pkl')
-    aperture = 'auto' # ['auto'  'petro'  'aper' ]
+    Returns:
+    None
+    """
 
-    cols, broad_suff, narrow_suff = read_headers_and_identifiers(headerpath)
-    classes = pd.read_csv(classespath).drop_duplicates(subset='id')
-
-    broadbands = [ x + '_' + aperture for  x in broad_suff ]
-    narrowbands = [ y + '_' + aperture for  y in narrow_suff ]
-
-    ids_keep = set(classes.id)
-
-    if not os.path.exists(catalogspklpath):
-        features = read_catalogs_dir(catalogdir, cols, ids_keep)
-        pickle.dump(features, open(catalogspklpath, 'wb'))
-    else:
-        features = pickle.load(open(catalogspklpath, 'rb'))
-
-    features_broad = features[['ID'] + broadbands]
-    features_narrow = features[['ID'] + narrowbands]
-    features_union = features[['ID'] + broadbands + narrowbands]
-
-    classes_map = {}    # Create a map of numbers->classes
-    for acc, a in enumerate(set(classes['class'])): classes_map[a] = acc
-
-    gt = classes[['id', 'class']]
-    gt = gt[gt.id.isin(features.ID)]
-    gt['class'] = gt['class'].map(classes_map)
-    gt = gt.sort_values(by='id')
-    y = gt['class'].values
-
-    x_broad = features_broad.sort_values(by='ID')[broadbands]
-    x_narrow = features_narrow.sort_values(by='ID')[narrowbands] # Narrowbands
-    x_union = features_union.sort_values(by='ID')[broadbands + narrowbands] # All bands
-
-    cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
-    broadscores, params = apply_svm(x_broad, y, cv)
-    narrowscores, _ = apply_svm(x_narrow, y, cv)
-    unionscores, _ = apply_svm(x_union, y, cv)
-
-    params_path = os.path.join(resultsdir,
-                                      os.path.splitext(classesfname)[0] + '_params.pkl')
-    results_broad_path = os.path.join(resultsdir,
-                                      os.path.splitext(classesfname)[0] + '_broadscores.pkl')
-    results_narrow_path = os.path.join(resultsdir,
-                                      os.path.splitext(classesfname)[0] + '_narrowscores.pkl')
-    results_union_path = os.path.join(resultsdir,
-                                      os.path.splitext(classesfname)[0] + '_unionscores.pkl')
-
-    pickle.dump(params, open(params_path, 'wb'))
-    pickle.dump(broadscores, open(results_broad_path, 'wb'))
-    pickle.dump(narrowscores, open(results_narrow_path, 'wb'))
-    pickle.dump(unionscores, open(results_union_path, 'wb'))
-
-    # Generate output
+    pickle.dump(broadscores, open(ojoin(resultsdir, 'broadscores.pkl'), 'wb'))
+    pickle.dump(narrowscores, open(ojoin(resultsdir, 'narrowscores.pkl'), 'wb'))
+    pickle.dump(unionscores, open(ojoin(resultsdir, 'unionscores.pkl'), 'wb'))
     n = len(params)
     bm = broadscores.mean(axis=1).reshape(n, 1)
     bs = broadscores.std(axis=1).reshape(n, 1)
@@ -222,9 +176,60 @@ def main():
     us = unionscores.std(axis=1).reshape(n, 1)
     summary = np.concatenate([np.array(params), bm, bs, nm, ns, um, us], axis=1)
     h = 'C,deg,gamma,ker,broadmean,broadstd,narrowmean,narrowstd,unionmean,unionstd'
-    np.savetxt('/tmp/out.csv', summary, fmt='%s', delimiter=',',
+    np.savetxt(ojoin(resultsdir, 'summary.csv'), summary, fmt='%s', delimiter=',',
                header=h, comments='')
+    debug(summary)
 
+##########################################################
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--catalogspath', required=True, help='Path to the catalogs dir')
+    parser.add_argument('--gtpath', required=True, help='Path to the ground-truth csv')
+    args = parser.parse_args()
+
+    headerpath = 'data/header.txt'
+    resultsdir = ojoin('results', datetime.datetime.now().strftime('%Y%m%d_%H%M'))
+    os.mkdir(resultsdir)
+    params = pd.read_csv('data/params.csv')
+
+    logging.basicConfig(level=logging.DEBUG)
+
+    with open(ojoin(resultsdir, 'README.md'), 'w') as fh:
+        fh.write(args.gtpath + '\n')
+        fh.write(args.catalogspath + '\n')
+        fh.write(headerpath + '\n')
+
+    classesfname = os.path.basename(args.gtpath)
+    catalogspklpath = ojoin('data/', os.path.splitext(classesfname)[0] + '.pkl')
+    aperture = 'auto' # ['auto'  'petro'  'aper' ]
+
+    cols, broadbands, narrowbands = read_headers_and_identifiers(headerpath)
+    classes = pd.read_csv(args.gtpath).drop_duplicates(subset='id')
+    features = get_catalogs(args.catalogspath, catalogspklpath, cols, set(classes.id))
+
+    # Prepare mapping (classes->number)
+    classes_map = {}
+    for acc, a in enumerate(set(classes['class'])): classes_map[a] = acc
+
+    # Prepare Y
+    gt = classes[['id', 'class']]
+    gt = gt[gt.id.isin(features.ID)]
+    gt['class'] = gt['class'].map(classes_map)
+    gt = gt.sort_values(by='id')
+    y = gt['class'].values
+
+    # Prepare X (scale)
+    x_broad = preprocessing.scale(features[broadbands])
+    x_narrow = preprocessing.scale(features[narrowbands])
+    x_union = preprocessing.scale(features[broadbands+narrowbands])
+
+    cv = ShuffleSplit(n_splits=5, test_size=0.2, random_state=0)
+
+    broadscores = cv_svm(x_broad, y, cv, params)
+    narrowscores = cv_svm(x_narrow, y, cv, params)
+    unionscores = cv_svm(x_union, y, cv, params)
+
+    dump_results(broadscores, narrowscores, unionscores, params, resultsdir)
 
 ##########################################################
 if __name__ == "__main__":

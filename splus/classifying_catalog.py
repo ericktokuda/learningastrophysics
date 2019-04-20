@@ -121,14 +121,15 @@ def cv_svm(x, y, cv, params):
     allscores = np.ndarray((0, k))
     times = []
 
+    nrows = params.shape[0]
     for idx, (myker, mydeg, mygamma, myc) in params.iterrows():
         debug('##########################################################')
-        debug('Cross-validation for {}...'.format(id))
+        debug('Cross-validation {}/{}...'.format(idx, nrows))
         
         t0 = time.time()
         
         myc, myker, mydeg, mygamma
-        clf = svm.SVC(C=1.0,
+        clf = svm.SVC(C=myc,
                       kernel=myker,
                       degree=mydeg,
                       gamma=mygamma,
@@ -201,7 +202,6 @@ def main():
 
     classesfname = os.path.basename(args.gtpath)
     catalogspklpath = ojoin('data/', os.path.splitext(classesfname)[0] + '.pkl')
-    aperture = 'auto' # ['auto'  'petro'  'aper' ]
 
     cols, broadbands, narrowbands = read_headers_and_identifiers(headerpath)
     classes = pd.read_csv(args.gtpath).drop_duplicates(subset='id')

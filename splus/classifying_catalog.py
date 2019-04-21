@@ -103,6 +103,37 @@ def get_catalogs(catalogspath, catalogspklpath, cols, ids_keep):
         features = pickle.load(open(catalogspklpath, 'rb'))
     return features
 
+def clustering(x, n_clusters=3):
+    from sklearn.cluster import KMeans, MiniBatchKMeans
+    km = MiniBatchKMeans(n_clusters=n_clusters, init='k-means++', n_init=1,
+                         init_size=1000, batch_size=1000, verbose=True)
+
+    km.fit(x)
+    #pickle.dump(km, open('/tmp/km.pkl', 'wb'))
+
+def dimensionality_reduction(x, classes_lst, groups):
+    from sklearn import manifold
+    from mpl_toolkits.mplot3d import Axes3D
+
+    tsne = manifold.TSNE(n_components=3, init='random',
+                         random_state=0, perplexity=30)
+    y = tsne.fit_transform(x)
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+
+    colors = 'g,r,c'.split(',')
+
+    for i, g in enumerate(groups):
+        c = colors[i]
+        mylabel = classes_lst[i]
+        yy = y[g]
+        ax.scatter(y[g][:, 0], y[g][:, 1], y[g][:, 2], color=c,
+                   label=mylabel)
+
+    ax.legend()
+    plt.show()
+
 def cv_svm(x, y, cv, params):
     """Cross-validation evaluation using SVM
 
@@ -211,7 +242,10 @@ def main():
 
     # Prepare mapping (classes->number)
     classes_map = {}
-    for acc, a in enumerate(set(classes['class'])): classes_map[a] = acc
+    classes_lst = []
+    for acc, a in enumerate(set(classes['class'])):
+        classes_map[a] = acc
+        classes_lst.append(a)
 
     # Prepare Y
     gt = classes[['id', 'class']]
@@ -219,11 +253,16 @@ def main():
     gt['class'] = gt['class'].map(classes_map)
     gt = gt.sort_values(by='id')
     y = gt['class'].values
+    groups_indices = [y == 0, y == 1, y ==2]
 
     # Prepare X (scale)
     x_broad = preprocessing.scale(features[broadbands])
     x_narrow = preprocessing.scale(features[narrowbands])
     x_union = preprocessing.scale(features[broadbands+narrowbands])
+
+    ##########################################################
+    #clustering(x_broad, n_clusters=3)
+    dimensionality_reduction(x_broad, classes_lst, groups_indices)
 
     cv = ShuffleSplit(n_splits=3, test_size=0.2, random_state=0)
 

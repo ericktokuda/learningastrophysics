@@ -103,21 +103,43 @@ def get_catalogs(catalogspath, catalogspklpath, cols, ids_keep):
         features = pickle.load(open(catalogspklpath, 'rb'))
     return features
 
-def clustering(x, n_clusters=3):
+def clustering(x, n_clusters, y):
+    from sklearn import metrics
+    t0 = time.time()
     from sklearn.cluster import KMeans, MiniBatchKMeans
-    km = MiniBatchKMeans(n_clusters=n_clusters, init='k-means++', n_init=1,
-                         init_size=1000, batch_size=1000, verbose=True)
+    km = MiniBatchKMeans(n_clusters=n_clusters, init='k-means++', max_iter=100,
+                         batch_size=1000, verbose=True, compute_labels=True,
+                         random_state=0, tol=0.0, max_no_improvement=10,
+                         init_size=None, n_init=3, reassignment_ratio=0.01)
 
     km.fit(x)
-    #pickle.dump(km, open('/tmp/km.pkl', 'wb'))
+    print(metrics.homogeneity_score(y, km.labels_))
+    pickle.dump(km, open('./kmeans_{}.pkl'.format(n_clusters), 'wb'))
+    elapsed = time.time() - t0
+    debug('Elapsed time: {:.2f}s'.format(time.time() - t0))
 
-def dimensionality_reduction(x, classes_lst, groups):
+    from sklearn.cluster import AgglomerativeClustering
+
+    clust = AgglomerativeClustering(linkage='ward', n_clusters=n_clusters)
+    clust.fit(x)
+    print(metrics.homogeneity_score(y, clust.labels_))
+
+def dimensionality_reduction(x, classes_lst, groups, ndim=3):
+    t0 = time.time()
     from sklearn import manifold
     from mpl_toolkits.mplot3d import Axes3D
 
-    tsne = manifold.TSNE(n_components=3, init='random',
-                         random_state=0, perplexity=30)
+    tsne = manifold.TSNE(n_components=ndim, perplexity=30.0,
+                         early_exaggeration=12.0, learning_rate=200.0,
+                         n_iter=1000, n_iter_without_progress=300,
+                         min_grad_norm=1e-07, metric='euclidean',
+                         init='random', verbose=True,
+                         random_state=0, method='barnes_hut', angle=0.5)
     y = tsne.fit_transform(x)
+    pickle.dump(y, open('./tsne_{}.pkl'.format(ndim), 'wb'))
+    elapsed = time.time() - t0
+    debug('Elapsed time: {:.2f}s'.format(time.time() - t0))
+    return
 
     fig = plt.figure()
     ax = fig.add_subplot(111, projection='3d')
@@ -261,8 +283,12 @@ def main():
     x_union = preprocessing.scale(features[broadbands+narrowbands])
 
     ##########################################################
-    #clustering(x_broad, n_clusters=3)
-    dimensionality_reduction(x_broad, classes_lst, groups_indices)
+    #clustering(x_broad, 2)
+    clustering(x_broad, 3, y)
+    #clustering(x_broad, 4)
+    #dimensionality_reduction(x_broad, classes_lst, groups_indices, 2)
+    #dimensionality_reduction(x_broad, classes_lst, groups_indices, 3)
+    return
 
     cv = ShuffleSplit(n_splits=3, test_size=0.2, random_state=0)
 

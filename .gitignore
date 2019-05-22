@@ -4,6 +4,8 @@ __pycache__/
 *$py.class
 *.swp
 *pkl
+splus/results/
+*.nfs*
 
 # C extensions
 *.so

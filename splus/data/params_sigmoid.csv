@@ -1,0 +1,4 @@
+kernel,degree,gamma,C
+sigmoid,999,scale,.1
+sigmoid,999,scale,1
+sigmoid,999,scale,10

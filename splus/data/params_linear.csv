@@ -1,0 +1,4 @@
+kernel,degree,gamma,C
+linear,999,scale,.1
+linear,999,scale,1
+linear,999,scale,10

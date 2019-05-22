@@ -1,0 +1,4 @@
+kernel,degree,gamma,C
+poly,3,scale,.1
+poly,3,scale,1
+poly,3,scale,10

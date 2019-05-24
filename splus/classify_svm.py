@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Classify using a pool of svm classifiers with different params
-for F in data/params_*; do X=$(basename $F) && X=${X/csv/log} &&  echo python classify_svm.py data/spectra.pkl --trainids data/train_spectra.txt --valids data/val_spectra.txt  --testids data/test_spectra.txt --paramspath $F --outpath results/spectra/$X & done
+for F in data/params_*; do X=$(basename $F) && X=${X/csv/log} &&  echo python classify_svm.py data/spectra.pkl --trainids data/train_spectra.txt --valids data/val_spectra.txt  --testids data/test_spectra.txt --cols data/cols.txt --paramspath $F --outpath results/spectra/$X & done
 """
 
 import os

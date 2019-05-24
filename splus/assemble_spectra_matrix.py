@@ -48,7 +48,8 @@ def main():
     spectra['id'] = ids
 
     # Get class from external file
-    dr = pd.read_csv('data/dr_early.csv')
+    #dr = pd.read_csv('data/dr_early.csv')
+    dr = pd.read_csv('data/dr_early_1619.csv')
 
     # First filter out non-existing ground truth
     ids_common = set(ids).intersection(set(dr.id))

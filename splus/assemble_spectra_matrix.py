@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Assemble the big spectra matrix
+python assemble_spectra_matrix.py --spectradir ~anamartinazzo/raw-data/spectra/python assemble_spectra_matrix.py --spectradir ~anamartinazzo/raw-data/spectra/ --filter
 """
 
 import os
@@ -18,6 +19,7 @@ import pickle
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--spectradir', required=True, help='Spectra dir, one file per obj')
     parser.add_argument('--filter', required=False, action='store_true',
                         help='Filter by the 16-19 band')
     parser.add_argument('--outdir', required=False, default='/tmp',
@@ -27,9 +29,8 @@ def main():
     logging.basicConfig(format='[%(asctime)s] %(message)s',
                         datefmt='%Y%m%d %H:%M', level=logging.DEBUG
                         )
-    spectradir = '/home/anamartinazzo/raw-data/spectra/'
 
-    files = sorted(os.listdir(spectradir))
+    files = sorted(os.listdir(args.spectradir))
     nfiles = len(files)
     spectra = np.ndarray((nfiles, 5500), dtype=float)
     suff = '_1619' if args.filter else ''
@@ -38,7 +39,7 @@ def main():
     ids = []
     for f in files:
         if not f.endswith('txt'): continue
-        filepath = os.path.join(spectradir, f)
+        filepath = os.path.join(args.spectradir, f)
         row = np.loadtxt(filepath)
         spectra[i, :] = row
         i += 1

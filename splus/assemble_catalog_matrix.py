@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """Assemble catalog matrix, assuming a csv is provided with all fields
-python assemble_catalog_matrix.py --fullcsv data/dr1_full.csv --cols data/cols_dr1.txt --outpkl /tmp/out.pkl
+python assemble_catalog_matrix.py --fullcsv data/dr1_full.csv --cols data/cols_dr1.txt --trainids data/train_dr1.txt --valids data/val_dr1.txt --testids data/test_dr1.txt  --filter
 """
 
 

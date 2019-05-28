@@ -45,7 +45,7 @@ def svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma):
     clf.fit(x_train, y_train) 
     pred_val = clf.predict(x_val)
     prec = confusion_matrix(y_val, pred_val)
-    cm = prec.astype('float') / prec.sum(axis=1)[:, np.newaxis]
+    cm = prec #cm = prec.astype('float') / prec.sum(axis=1)[:, np.newaxis]
     return clf, cm
 
 def main():
@@ -56,11 +56,14 @@ def main():
     parser.add_argument('--valids', required=False, default='data/val.txt', help='Validation list path')
     parser.add_argument('--testids', required=False, default='data/test.txt', help='Test list path')
     parser.add_argument('--cols', required=False, default='data/cols.txt', help='Columns list path')
-    parser.add_argument('--outpath', required=False, default='/tmp/results.log', help='Output log ')
+    parser.add_argument('--outdir', required=False, default='/tmp/', help='Output dir ')
+    parser.add_argument('--sample', required=False, action='store_true',
+                        help='Run the script just for the first 100 rows of train,val,test')
     args = parser.parse_args()
+    logpath = os.path.join(args.outdir, 'results.log')
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
-                        datefmt='%Y%m%d %H:%M', level=logging.DEBUG, filename=args.outpath)
+                        datefmt='%Y%m%d %H:%M', level=logging.DEBUG, filename=logpath)
 
     cols = np.loadtxt(args.cols, dtype=str)
     trainids = np.loadtxt(args.trainids, dtype=str)
@@ -68,6 +71,12 @@ def main():
     testids = np.loadtxt(args.testids, dtype=str)
     params = pd.read_csv(args.paramspath)
     loaded = pickle.load(open(args.featurespath, 'rb'))
+
+    if args.sample:
+        k = 500
+        trainids = trainids[:k]
+        valids = valids[:k]
+        testids = testids[:k]
 
     features_train = loaded[loaded.id.isin(trainids)]
     features_val = loaded[loaded.id.isin(valids)]
@@ -105,6 +114,7 @@ def main():
     # Run with test set the best params previously obtained
     myker, mydeg, mygamma, myc = params_best
     clf, confusion = svm_trainval(x_train, y_train, x_test, y_test, myc, myker, mydeg, mygamma)
+    debug('Best classifier:')
     debug(','.join(map(str, params_best)))
     debug(confusion)
 

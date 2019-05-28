@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Classify using a pool of svm classifiers with different params
-for F in data/params_*; do X=$(basename $F) && X=${X/csv/log} &&  echo python classify_svm.py data/spectra.pkl --trainids data/train_spectra.txt --valids data/val_spectra.txt  --testids data/test_spectra.txt --cols data/cols.txt --paramspath $F --outpath results/spectra/$X & done
+for F in data/params_*; do X=$(basename $F) && X=${X/params_/} && X=${X/.csv/} &&  D=results/20190528-dr1/$X/ && mkdir -p $D && echo python classify_svm.py data/dr1.pkl --paramspath $F --trainids data/train_dr1.txt --valids data/val_dr1.txt  --testids data/test_dr1.txt  --cols data/cols_dr1.txt --outdir $D & done
+
 """
 
 import os
@@ -8,7 +9,7 @@ import argparse
 import numpy as np
 import pandas as pd
 from sklearn import preprocessing, svm
-from sklearn.metrics import confusion_matrix
+from sklearn.metrics import confusion_matrix, precision_recall_fscore_support
 import time
 import logging
 from logging import debug
@@ -44,8 +45,8 @@ def svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma):
                   random_state=0)
     clf.fit(x_train, y_train) 
     pred_val = clf.predict(x_val)
-    prec = confusion_matrix(y_val, pred_val)
-    cm = prec #cm = prec.astype('float') / prec.sum(axis=1)[:, np.newaxis]
+    # each column represents a prediction and each row, an actual value
+    cm = confusion_matrix(y_val, pred_val)
     return clf, pred_val, cm
 
 def main():
@@ -103,17 +104,17 @@ def main():
 
     # Grid search with different kernels
     params_best = []
-    prec_best = -1
+    fscore_best = -1
     for idx, p in params.iterrows():
         myker, mydeg, mygamma, myc = p
         t0 = time.time()
-        clf, _, confusion = svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma)
-        prec_avg = np.mean(np.diagonal(confusion))
-        finalstr = '{},{},{}'.format(','.join(map(str, p)), prec_avg, time.time() - t0)
+        clf, pred, confusion = svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma)
+        _, _, fscore, _ = precision_recall_fscore_support(y_val, pred, average='weighted')
+        finalstr = '{},{:.2f},{:.2f}'.format(','.join(map(str, p)), fscore, time.time() - t0)
         debug(finalstr)
 
-        if prec_avg > prec_best:
-            prec_best = prec_avg
+        if fscore > fscore_best:
+            fscore_best = fscore
             params_best = myker, mydeg, mygamma, myc
             
     # Run with test set the best params previously obtained

@@ -18,17 +18,21 @@ import pickle
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--filter', required=False, action='store_true',
+                        help='Filter by the 16-19 band')
+    parser.add_argument('--outdir', required=False, default='/tmp',
+                        help='Output dir')
     args = parser.parse_args()
 
     logging.basicConfig(format='[%(asctime)s] %(message)s',
                         datefmt='%Y%m%d %H:%M', level=logging.DEBUG
                         )
     spectradir = '/home/anamartinazzo/raw-data/spectra/'
-    outdir = '/tmp'
 
     files = sorted(os.listdir(spectradir))
     nfiles = len(files)
     spectra = np.ndarray((nfiles, 5500), dtype=float)
+    suff = '_1619' if args.filter else ''
 
     i = 0 
     ids = []
@@ -40,7 +44,8 @@ def main():
         i += 1
         ids.append(f.replace('.txt', ''))
         debug(i)
-        #if i == 100: break
+        #################################################################
+        #if i == 1: break
     spectra = spectra[:i]
 
     spectra = pd.DataFrame(spectra)
@@ -48,8 +53,9 @@ def main():
     spectra['id'] = ids
 
     # Get class from external file
-    #dr = pd.read_csv('data/dr_early.csv')
-    dr = pd.read_csv('data/dr_early_1619.csv')
+    dr = pd.read_csv('data/dr_early.csv')
+    #dr = pd.read_csv('data/dr_early_1619.csv')
+    if args.filter: dr = dr[(dr.r>=16) & (dr.r<19)]
 
     # First filter out non-existing ground truth
     ids_common = set(ids).intersection(set(dr.id))
@@ -58,7 +64,7 @@ def main():
     # Secondly get classes
     drfiltered = dr[dr.id.isin(ids)][['id', 'class']]
     spectra = pd.merge(spectra, drfiltered, on='id')
-    spectraoutpath = os.path.join(outdir, 'spectra.pkl')
+    spectraoutpath = os.path.join(args.outdir, 'spectra' + suff + '.pkl')
     spectra.to_pickle(spectraoutpath)
     debug('Path generated to ' + spectraoutpath)
 
@@ -66,10 +72,13 @@ def main():
                                                         test_size=0.125, random_state=1)
     x_train, x_val, y_train, y_val = train_test_split(x_train, y_train,
                                                         test_size=0.143, random_state=1)
-    x_train.to_csv(os.path.join(outdir, 'train_spectra.txt'), index=False, header=False)
-    x_val.to_csv(os.path.join(outdir, 'val_spectra.txt'), index=False, header=False)
-    x_test.to_csv(os.path.join(outdir, 'test_spectra.txt'), index=False, header=False)
-    debug('Partitions in  ' + outdir)
+    x_train.to_csv(os.path.join(args.outdir, 'train_spectra' + suff + '.txt'),
+                   index=False, header=False)
+    x_val.to_csv(os.path.join(args.outdir, 'val_spectra' + suff + '.txt'),
+                 index=False, header=False)
+    x_test.to_csv(os.path.join(args.outdir, 'test_spectra' + suff + '.txt'),
+                  index=False, header=False)
+    debug('Partitions in  ' + args.outdir)
 
 if __name__ == "__main__":
     main()

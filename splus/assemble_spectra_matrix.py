@@ -46,7 +46,7 @@ def main():
         ids.append(f.replace('.txt', ''))
         debug(i)
         #################################################################
-        #if i == 1: break
+        #if i == 100: break
     spectra = spectra[:i]
 
     spectra = pd.DataFrame(spectra)
@@ -63,7 +63,7 @@ def main():
     spectra = spectra[spectra.id.isin(ids_common)]
 
     # Secondly get classes
-    drfiltered = dr[dr.id.isin(ids)][['id', 'class']]
+    drfiltered = dr[dr.id.isin(ids)][['id', 'class', 'r']]
     spectra = pd.merge(spectra, drfiltered, on='id')
     spectraoutpath = os.path.join(args.outdir, 'spectra' + suff + '.pkl')
     spectra.to_pickle(spectraoutpath)

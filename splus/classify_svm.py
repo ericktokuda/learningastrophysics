@@ -46,7 +46,7 @@ def svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma):
     pred_val = clf.predict(x_val)
     prec = confusion_matrix(y_val, pred_val)
     cm = prec #cm = prec.astype('float') / prec.sum(axis=1)[:, np.newaxis]
-    return clf, cm
+    return clf, pred_val, cm
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -86,6 +86,8 @@ def main():
     x_val = features_val[cols]
     x_test = features_test[cols]
 
+    test = features_test[['id', 'r']]
+
     # Names -> labels
     le = preprocessing.LabelEncoder()
     le.fit(features_train['class'])
@@ -96,13 +98,16 @@ def main():
     y_val = le.transform(features_val['class'])
     y_test = le.transform(features_test['class'])
 
+    aux = pd.DataFrame(y_test, columns=['y']).reset_index(drop=True)
+    test = pd.concat([test.reset_index(drop=True), aux], axis=1)
+
     # Grid search with different kernels
     params_best = []
     prec_best = -1
     for idx, p in params.iterrows():
         myker, mydeg, mygamma, myc = p
         t0 = time.time()
-        clf, confusion = svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma)
+        clf, _, confusion = svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma)
         prec_avg = np.mean(np.diagonal(confusion))
         finalstr = '{},{},{}'.format(','.join(map(str, p)), prec_avg, time.time() - t0)
         debug(finalstr)
@@ -113,7 +118,12 @@ def main():
             
     # Run with test set the best params previously obtained
     myker, mydeg, mygamma, myc = params_best
-    clf, confusion = svm_trainval(x_train, y_train, x_test, y_test, myc, myker, mydeg, mygamma)
+    clf, pred, confusion = svm_trainval(x_train, y_train, x_test, y_test, myc, myker, mydeg, mygamma)
+
+    aux = pd.DataFrame(pred, columns=['pred']).reset_index(drop=True)
+    test = pd.concat([test.reset_index(drop=True), aux], axis=1)
+    test.to_csv(os.path.join(args.outdir, 'results.csv'), index=False)
+
     debug('Best classifier:')
     debug(','.join(map(str, params_best)))
     debug(confusion)

@@ -39,8 +39,8 @@ def svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma):
                   tol=0.001,
                   cache_size=48000,
                   class_weight=None,
-                  verbose=False,
-                  max_iter=-1,
+                  verbose=True,
+                  max_iter=10**8,
                   decision_function_shape='ovr',
                   random_state=0)
     clf.fit(x_train, y_train) 

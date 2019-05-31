@@ -38,7 +38,7 @@ def svm_trainval(x_train, y_train, x_val, y_val, myc, myker, mydeg, mygamma):
                   probability=False,
                   tol=0.001,
                   cache_size=48000,
-                  class_weight=None,
+                  class_weight='balanced',
                   verbose=True,
                   max_iter=10**8,
                   decision_function_shape='ovr',
